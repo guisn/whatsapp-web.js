@@ -63,8 +63,11 @@ class Client extends EventEmitter {
                 }, this.options.session);
         }
 
-        await page.goto(WhatsWebURL);
-
+        await page.goto(WhatsWebURL, {
+            waitUntil: 'load',
+            timeout: 0,
+        });
+        
         const KEEP_PHONE_CONNECTED_IMG_SELECTOR = '[data-asset-intro-image="true"]';
 
         if (this.options.session) {
@@ -401,12 +404,14 @@ class Client extends EventEmitter {
         } else if (options.media instanceof MessageMedia) {
             internalOptions.attachment = options.media;
             internalOptions.caption = content;
+            content = '';
         } else if (content instanceof Location) {
             internalOptions.location = content;
             content = '';
         }
 
         const newMessage = await this.pupPage.evaluate(async (chatId, message, options, sendSeen) => {
+<<<<<<< HEAD
             let chat = window.Store.Chat.get(chatId);
             let msg;
             if (!chat) { // The chat is not available in the previously chatted list
@@ -432,7 +437,16 @@ class Client extends EventEmitter {
                 }
 
                 msg = await window.WWebJS.sendMessage(chat, message, options, sendSeen);
+=======
+            const chatWid = window.Store.WidFactory.createWid(chatId);
+            const chat = await window.Store.Chat.find(chatWid);
+
+            if(sendSeen) {
+                window.WWebJS.sendSeen(chatId);
+>>>>>>> aa60e899113206bd8ce3d6381e959dfbaf11dec8
             }
+
+            const msg = await window.WWebJS.sendMessage(chat, message, options, sendSeen);
             return msg.serialize();
         }, chatId, content, internalOptions, sendSeen);
 
@@ -554,6 +568,29 @@ class Client extends EventEmitter {
         }, chatId);
     }
 
+    /**
+     * Mutes the Chat until a specified date
+     * @param {string} chatId ID of the chat that will be muted
+     * @param {Date} unmuteDate Date when the chat will be unmuted
+     */
+    async muteChat(chatId, unmuteDate) {
+        await this.pupPage.evaluate(async (chatId, timestamp) => {
+            let chat = await window.Store.Chat.get(chatId);
+            await chat.mute.mute(timestamp, !0);
+        }, chatId, unmuteDate.getTime() / 1000);
+    }
+    
+    /**
+     * Unmutes the Chat
+     * @param {string} chatId ID of the chat that will be unmuted
+     */
+    async unmuteChat(chatId) {
+        await this.pupPage.evaluate(async chatId => {
+            let chat = await window.Store.Chat.get(chatId);
+            await window.Store.Cmd.muteChat(chat, false);
+        }, chatId);
+    }
+    
     /**
      * Returns the contact ID's profile picture URL, if privacy settings allow it
      * @param {string} contactId the whatsapp user's ID
